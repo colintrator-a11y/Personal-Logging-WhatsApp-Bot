@@ -41,8 +41,21 @@ it every write returns 403.
 
 ### 3. Gemini key
 
-From <https://aistudio.google.com/apikey>. The free tier covers this easily;
-`gemini-2.5-flash-lite` is the cheapest model that parses reliably.
+From <https://aistudio.google.com/apikey>. The free tier covers this easily.
+
+The default is `gemini-3.5-flash-lite` — a parse takes about a second. Note that
+`gemini-2.5-flash-lite` returns 404 for keys created after its retirement, so if
+you see `no longer available to new users`, list what your key can actually
+reach and set `GEMINI_MODEL` to one of those:
+
+```bash
+.venv/bin/python -c "
+from app import config
+from google import genai
+for m in genai.Client(api_key=config.GEMINI_API_KEY).models.list():
+    if 'generateContent' in (m.supported_actions or []): print(m.name)
+"
+```
 
 ### 4. `.env`
 
