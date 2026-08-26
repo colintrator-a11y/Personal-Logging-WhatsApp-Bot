@@ -82,6 +82,18 @@ def clear_write() -> None:
     config.LAST_WRITE_FILE.unlink(missing_ok=True)
 
 
+# ---- backups ---------------------------------------------------------------
+
+
+def backup_rows(rows: list[list[Any]]):
+    """Dump the sheet to disk before a destructive command."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    path = config.DATA_DIR / f"sheet-backup-{stamp}.json"
+    with _lock:
+        path.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+    return path
+
+
 # ---- pending clarification -------------------------------------------------
 
 

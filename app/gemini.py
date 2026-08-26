@@ -33,7 +33,7 @@ SCHEMA = {
                 "properties": {
                     "amount": {"type": "number"},
                     "currency": {"type": "string"},
-                    "category": {"type": "string", "enum": config.CATEGORIES},
+                    "category": {"type": "string"},
                     "description": {"type": "string"},
                     "date": {"type": "string"},
                 },
@@ -50,8 +50,13 @@ SCHEMA = {
 
 SYSTEM = """You extract expenses from one short message in a personal expense log.
 
-Categories: you MUST pick exactly one of {categories} for every entry. These are
-the only categories that exist. If nothing fits, use "other". Never invent one.
+Categories already used in this log: {categories}
+
+Reuse one of those whenever it is a reasonable fit — that is what keeps the
+totals meaningful. Only invent a new category when none of them fits at all,
+and then use a single lowercase English word (e.g. "rent", "pets", "travel").
+Never invent a near-duplicate of an existing one: if "food" exists, do not
+return "meals", "dining" or "comida".
 
 Dates: today is {today} ({weekday}) in timezone {tz}. Resolve any relative date
 in any language to an absolute YYYY-MM-DD ("yesterday", "ayer", "昨日" -> the day
@@ -117,10 +122,10 @@ def _retryable(err: Exception) -> bool:
     return any(w in text for w in ("timeout", "timed out", "connection", "temporarily"))
 
 
-def _call(text: str) -> str:
+def _call(text: str, categories: list[str]) -> str:
     today = datetime.now(config.TZ).date()
     system = SYSTEM.format(
-        categories=", ".join(config.CATEGORIES),
+        categories=", ".join(categories) or "(none yet)",
         today=today.isoformat(),
         weekday=today.strftime("%A"),
         tz=config.TZ_NAME,
@@ -155,7 +160,23 @@ def _call(text: str) -> str:
     raise GeminiError(f"gemini failed: {last}") from last
 
 
-def _coerce(payload: dict) -> ParseResult:
+def _clean_category(raw: str, categories: list[str]) -> str:
+    """Snap to an existing category when it is one, else accept a tidy new one."""
+    name = str(raw or "").strip().lower()
+    if not name:
+        return config.FALLBACK_CATEGORY
+    lookup = {c.lower(): c for c in categories}
+    if name in lookup:
+        return lookup[name]
+    # a brand new category, but keep it short and single-word so the column
+    # does not fill up with sentences
+    name = name.split(",")[0].strip()
+    if not name or len(name) > 24 or len(name.split()) > 2:
+        return config.FALLBACK_CATEGORY
+    return name
+
+
+def _coerce(payload: dict, categories: list[str]) -> ParseResult:
     today = datetime.now(config.TZ).date()
     entries: list[Entry] = []
 
@@ -167,10 +188,7 @@ def _coerce(payload: dict) -> ParseResult:
         if amount <= 0:
             continue
 
-        # Second gate on the category, in case the schema is ever relaxed.
-        category = str(item.get("category", "")).strip().lower()
-        if category not in config.CATEGORIES:
-            category = config.FALLBACK_CATEGORY
+        category = _clean_category(item.get("category", ""), categories)
 
         currency = (str(item.get("currency") or config.DEFAULT_CURRENCY)).strip().upper()
         if len(currency) != 3 or not currency.isalpha():
@@ -199,12 +217,13 @@ def _coerce(payload: dict) -> ParseResult:
     )
 
 
-def parse(text: str) -> ParseResult:
-    raw = _call(text)
+def parse(text: str, categories: list[str] | None = None) -> ParseResult:
+    categories = categories if categories is not None else list(config.SEED_CATEGORIES)
+    raw = _call(text, categories)
     try:
         payload = json.loads(raw)
     except ValueError as err:
         raise GeminiError(f"non-JSON response: {raw[:200]}") from err
     if not isinstance(payload, dict):
         raise GeminiError(f"unexpected response shape: {raw[:200]}")
-    return _coerce(payload)
+    return _coerce(payload, categories)

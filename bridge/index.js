@@ -52,7 +52,7 @@ const say = (...a) => console.log(stamp(), ...a)
 
 // Last-resort guard. Every known echo path is closed below, but a reply loop in
 // your own self-chat is expensive and noisy, so refuse to keep feeding it.
-const REPLY_BURST_LIMIT = Number(process.env.REPLY_BURST_LIMIT || 15)
+const REPLY_BURST_LIMIT = Number(process.env.REPLY_BURST_LIMIT || 30)
 const REPLY_BURST_WINDOW_MS = 60000
 let recentReplies = []
 let tripped = false
@@ -64,7 +64,8 @@ function replyBudgetOk() {
     if (!tripped) {
       tripped = true
       say(`REPLY LOOP GUARD: ${recentReplies.length} replies in 60s — muting replies.`)
-      say('this should not happen; check data/bridge.log for what is echoing back.')
+      say('rows are still being logged; only the confirmations are suppressed.')
+      say('raise REPLY_BURST_LIMIT in .env if you genuinely send this fast.')
     }
     return false
   }

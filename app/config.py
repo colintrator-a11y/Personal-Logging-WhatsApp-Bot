@@ -10,10 +10,14 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
-# The fixed category list. The model is constrained to these by the response
-# schema *and* re-checked in code; it can never invent a new one.
-CATEGORIES = ["food", "transport", "groceries", "bills", "health", "other"]
+# Categories are learned from what is already in the sheet. These only seed an
+# empty sheet so the first few messages land somewhere sensible; after that the
+# live column drives the list. See sheets.known_categories().
+SEED_CATEGORIES = ["food", "transport", "groceries", "bills", "health", "other"]
 FALLBACK_CATEGORY = "other"
+
+# How long a category list read from the sheet is reused before re-reading.
+CATEGORY_CACHE_SECONDS = int(os.getenv("CATEGORY_CACHE_SECONDS", "60"))
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")

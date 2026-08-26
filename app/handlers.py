@@ -8,15 +8,18 @@ from datetime import datetime
 
 from app import config, fmt_helpers as fmt, gemini, sheets, store
 
-HELP = (
-    "Send an expense: `almuerzo 1200`, `taxi 3500`, `¥480 coffee`, "
-    "`food 40 and parking 12`.\n"
-    "Relative dates work: `taxi 900 yesterday`.\n\n"
-    "*undo* — remove the last thing logged\n"
-    "*total* — this month\n"
-    "*total food* — this month, one category\n"
-    f"Categories: {', '.join(config.CATEGORIES)}"
-)
+def _help(categories: list[str]) -> str:
+    return (
+        "Send an expense: `almuerzo 1200`, `taxi 3500`, `¥480 coffee`, "
+        "`food 40 and parking 12`.\n"
+        "Relative dates work: `taxi 900 yesterday`.\n\n"
+        "*undo* — remove the last thing logged\n"
+        "*total* — this month\n"
+        "*total food* — this month, one category\n"
+        "*clean* — delete every row (keeps the header)\n\n"
+        "Categories grow from what you log. So far: "
+        + (", ".join(categories) or "none yet")
+    )
 
 # A reply to "how much?" — just a number, maybe with a symbol or currency code.
 BARE_AMOUNT = re.compile(r"^[¥$€£₩₹]?\s*[\d][\d.,]*\s*[¥$€£₩₹]?\s*[a-zA-Z]{0,3}$")
@@ -29,7 +32,12 @@ async def handle(text: str, chat: str) -> str | None:
 
     if lowered in ("help", "?", "ayuda", "ヘルプ"):
         store.take_pending(chat)
-        return HELP
+        cats = await asyncio.to_thread(sheets.known_categories)
+        return _help(cats)
+
+    if lowered in ("clean", "clear", "wipe"):
+        store.take_pending(chat)
+        return await _clean()
 
     if lowered == "undo":
         store.take_pending(chat)
@@ -57,7 +65,12 @@ async def _log(text: str, chat: str) -> str | None:
     store.log("incoming", chat=chat, text=text, parsed_as=to_parse)
 
     try:
-        result = await asyncio.to_thread(gemini.parse, to_parse)
+        categories = await asyncio.to_thread(sheets.known_categories)
+    except Exception:  # noqa: BLE001 - never block logging on a category read
+        categories = list(config.SEED_CATEGORIES)
+
+    try:
+        result = await asyncio.to_thread(gemini.parse, to_parse, categories)
     except gemini.GeminiError as err:
         store.log("parse_error", chat=chat, text=to_parse, error=str(err))
         return "⚠️ Could not reach the parser. Nothing was logged — send it again."
@@ -140,15 +153,51 @@ async def _undo() -> str:
     return f"↩️ Removed {removed} {noun}.{suffix}"
 
 
+# ---- clean -----------------------------------------------------------------
+
+
+async def _clean() -> str:
+    """Wipe every data row. Backed up locally first — Sheets undo is not ours."""
+    try:
+        rows = await asyncio.to_thread(sheets.read_rows)
+    except Exception as err:  # noqa: BLE001
+        store.log("clean_failed", stage="read", error=str(err))
+        return "⚠️ Could not read the sheet. Nothing was deleted."
+
+    if not rows:
+        return "Sheet is already empty."
+
+    backup = store.backup_rows(rows)
+    try:
+        removed = await asyncio.to_thread(sheets.clear_all_rows)
+    except Exception as err:  # noqa: BLE001
+        store.log("clean_failed", stage="delete", error=str(err))
+        return "⚠️ Could not delete the rows. Nothing was changed."
+
+    store.clear_write()
+    store.log("cleaned", removed=removed, backup=str(backup))
+    noun = "row" if removed == 1 else "rows"
+    return (
+        f"🧹 Deleted {removed} {noun}. Header kept.\n"
+        f"Backup: {backup.name}\n"
+        "Sheets also has File → Version history."
+    )
+
+
 # ---- totals ----------------------------------------------------------------
 
 
 async def _total(category: str | None) -> str:
-    if category and category not in config.CATEGORIES:
-        return (
-            f"Unknown category {category!r}.\n"
-            f"Pick one of: {', '.join(config.CATEGORIES)}"
-        )
+    if category:
+        try:
+            known = await asyncio.to_thread(sheets.known_categories)
+        except Exception:  # noqa: BLE001
+            known = list(config.SEED_CATEGORIES)
+        if category not in known:
+            return (
+                f"Nothing logged under {category!r} this month.\n"
+                f"Categories so far: {', '.join(known) or 'none yet'}"
+            )
 
     try:
         rows = await asyncio.to_thread(sheets.read_rows)

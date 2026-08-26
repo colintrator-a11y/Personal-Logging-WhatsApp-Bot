@@ -146,19 +146,36 @@ model is handed today's date and returns an absolute one.
 | `undo` | Removes the rows the last logged message produced |
 | `total` | This month, with a per-category breakdown |
 | `total food` | This month, one category |
-| `help` | The above |
+| `clean` | Deletes every data row, keeps the header |
+| `help` | The above, plus the categories in use |
+
+`clean` writes `data/sheet-backup-<timestamp>.json` before deleting, and the
+sheet's own File → Version history is a second net.
 
 ## Categories
 
-Fixed, in `app/config.py`:
+Learned from the sheet, not fixed. Before each parse the bot reads the distinct
+values in the `categoría` column and hands them to the model, which reuses one
+when it fits and coins a new one when nothing does:
 
 ```
-food, transport, groceries, bills, health, other
+lunch 12            -> food        (reused)
+rent 900            -> rent        (new)
+vet for the dog 65  -> pets        (new)
 ```
 
-The model cannot invent one — the list is an `enum` in the Gemini response
-schema *and* re-checked in `gemini._coerce`, which falls back to `other`. To
-change the list, edit `CATEGORIES` and restart the brain.
+`SEED_CATEGORIES` in `app/config.py` only bootstraps an empty sheet.
+
+The risk of a learned list is drift — `food`, `Food` and `comida` splitting one
+category three ways. `gemini._clean_category` limits it: the model is told not
+to coin near-duplicates, new names are lowercased and trimmed, anything already
+present is snapped to its existing spelling, and anything longer than two words
+falls back to `other`. It reduces drift; it does not eliminate it. If your
+totals start fragmenting, edit the column in the sheet and the bot follows —
+the sheet is the source of truth.
+
+The list is cached for `CATEGORY_CACHE_SECONDS` (60 by default) and invalidated
+on every write, so a new category is visible to the next message.
 
 ## When things fail
 

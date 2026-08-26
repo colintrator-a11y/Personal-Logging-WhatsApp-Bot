@@ -82,6 +82,7 @@ def append(rows: list[list[Any]]) -> None:
     """One API call for however many rows the message produced."""
     if not rows:
         return
+    invalidate_categories()
     _values().append(
         spreadsheetId=config.SHEET_ID,
         range=f"{config.SHEET_NAME}!A:G",
@@ -143,6 +144,79 @@ def read_rows() -> list[list[Any]]:
         .get("values", [])
     )
     return [row for row in got if row and any(str(c).strip() for c in row)]
+
+
+# ---- categories learned from the sheet -------------------------------------
+
+_cat_cache: tuple[float, list[str]] | None = None
+
+
+def invalidate_categories() -> None:
+    global _cat_cache
+    _cat_cache = None
+
+
+def known_categories(force: bool = False) -> list[str]:
+    """Distinct categories already in column E, most-used first.
+
+    Falls back to the seed list while the sheet is empty, and on any read error
+    so a Sheets hiccup cannot strip the model of its vocabulary mid-message.
+    """
+    global _cat_cache
+    now = time.monotonic()
+    if not force and _cat_cache and now - _cat_cache[0] < config.CATEGORY_CACHE_SECONDS:
+        return _cat_cache[1]
+
+    try:
+        got = (
+            _values()
+            .get(spreadsheetId=config.SHEET_ID, range=f"{config.SHEET_NAME}!E2:E")
+            .execute()
+            .get("values", [])
+        )
+    except Exception:  # noqa: BLE001 - keep parsing with whatever we had
+        return _cat_cache[1] if _cat_cache else list(config.SEED_CATEGORIES)
+
+    counts: dict[str, int] = {}
+    for row in got:
+        if not row:
+            continue
+        name = str(row[0]).strip().lower()
+        if name:
+            counts[name] = counts.get(name, 0) + 1
+
+    cats = sorted(counts, key=lambda c: (-counts[c], c)) or list(config.SEED_CATEGORIES)
+    _cat_cache = (now, cats)
+    return cats
+
+
+# ---- wholesale delete ------------------------------------------------------
+
+
+def clear_all_rows() -> int:
+    """Delete every data row, keeping the header. Returns how many went."""
+    total = row_count()
+    if total <= 1:
+        return 0
+    service().spreadsheets().batchUpdate(
+        spreadsheetId=config.SHEET_ID,
+        body={
+            "requests": [
+                {
+                    "deleteDimension": {
+                        "range": {
+                            "sheetId": gid(),
+                            "dimension": "ROWS",
+                            "startIndex": 1,  # 0-based: row 2
+                            "endIndex": total,
+                        }
+                    }
+                }
+            ]
+        },
+    ).execute()
+    invalidate_categories()
+    return total - 1
 
 
 def row_count() -> int:
