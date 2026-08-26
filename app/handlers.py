@@ -90,9 +90,9 @@ async def _log(text: str, chat: str) -> str | None:
     now = datetime.now(config.TZ)
     rows = [
         [
-            # Sheets cannot parse a UTC offset, so an ISO string lands as text and
-            # can neither be sorted nor number-formatted. Write local wall time.
-            now.strftime("%Y-%m-%d %H:%M:%S"),
+            # Full ISO 8601 with offset. Sheets cannot parse this, so it is stored
+            # as text — which is the point: the exact instant, unambiguous.
+            now.isoformat(timespec="seconds"),
             e.on.isoformat(),
             e.amount,
             e.currency,

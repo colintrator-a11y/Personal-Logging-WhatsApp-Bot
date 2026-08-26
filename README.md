@@ -99,18 +99,26 @@ on first start:
 
 | Column | Holds | Shown as |
 |---|---|---|
-| `timestamp` | when the row was written, local wall time | `08/26/2026 22:06:29` |
-| `date` | the expense date, after relative dates are resolved | `08/26/2026` |
+| `timestamp` | when the row was written, ISO 8601 with offset | `2026-08-26T23:23:22+09:00` |
+| `date` | the expense date, after relative dates are resolved | `08-25-2026` |
 | `amount` | a number, not text — so `SUM` works | `4.5` |
 | `currency` | ISO code | `USD` |
 | `category` | learned from this column, see below | `food` |
 | `description` | short, in your original language | `almuerzo` |
 | `raw_message` | exactly what you typed | `almuerzo 1200` |
 
-Both date columns hold real date values with a `mm/dd/yyyy` number format
-applied on startup, not text — they stay sortable and `SUM`/`FILTER` keep
-working. Rename the headers to whatever you like; the code depends on column
-*order*, never on the header text.
+The two date columns are deliberately different:
+
+- **`timestamp`** is a full ISO 8601 string with a UTC offset, stored as text.
+  Sheets cannot parse an offset, and that is the point — it records the exact
+  instant unambiguously, whatever the sheet's own locale and timezone are.
+- **`date`** is a *real date value* carrying a `mm-dd-yyyy` display pattern, not
+  a string. It has to stay a date so it sorts correctly and so `total` can
+  filter by month; only its appearance is `08-25-2026`.
+
+Both formats are reapplied on every start, so they survive manual edits.
+Rename the headers to whatever you like — the code depends on column *order*,
+never on the header text.
 
 Then in Google Cloud: enable the **Google Sheets API**, create a **service
 account**, download its JSON key, and **share the sheet with the service

@@ -78,16 +78,16 @@ def ensure_headers() -> None:
     ).execute()
 
 
-# The cells hold real date/datetime values; these control only how they read.
-TIMESTAMP_FORMAT = "mm/dd/yyyy hh:mm:ss"
-DATE_FORMAT = "mm/dd/yyyy"
+# Column A holds an ISO 8601 string and must stay text; column B holds a real
+# date value, so only its display pattern changes.
+DATE_FORMAT = "mm-dd-yyyy"
 
 
 def ensure_formats() -> None:
-    """Display both date columns as mm/dd/yyyy. Safe to run on every start."""
+    """Column A as text, column B as mm-dd-yyyy. Safe to run on every start."""
     sheet_id = gid()
 
-    def col(index: int, pattern: str) -> dict:
+    def fmt(index: int, number_format: dict) -> dict:
         return {
             "repeatCell": {
                 "range": {
@@ -96,19 +96,19 @@ def ensure_formats() -> None:
                     "startColumnIndex": index,
                     "endColumnIndex": index + 1,
                 },
-                "cell": {
-                    "userEnteredFormat": {
-                        "numberFormat": {"type": "DATE_TIME" if index == 0 else "DATE",
-                                         "pattern": pattern}
-                    }
-                },
+                "cell": {"userEnteredFormat": {"numberFormat": number_format}},
                 "fields": "userEnteredFormat.numberFormat",
             }
         }
 
     service().spreadsheets().batchUpdate(
         spreadsheetId=config.SHEET_ID,
-        body={"requests": [col(0, TIMESTAMP_FORMAT), col(1, DATE_FORMAT)]},
+        body={
+            "requests": [
+                fmt(0, {"type": "TEXT"}),
+                fmt(1, {"type": "DATE", "pattern": DATE_FORMAT}),
+            ]
+        },
     ).execute()
 
 
