@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from google.oauth2.service_account import Credentials
@@ -102,6 +103,31 @@ def append_with_retry(rows: list[list[Any]], attempts: int = 3) -> None:
             if i < attempts - 1:
                 time.sleep(2**i)
     raise SheetsError(f"sheets append failed after {attempts} tries: {last}") from last
+
+
+# A date cell written with USER_ENTERED comes back as a serial number, not the
+# "2026-08-26" we sent. Everything that reads the date column goes through here.
+SHEETS_EPOCH = date(1899, 12, 30)
+_TEXT_FORMATS = ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%d/%m/%Y")
+
+
+def to_date(value: Any) -> date | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return SHEETS_EPOCH + timedelta(days=int(value))
+        except (OverflowError, ValueError):
+            return None
+    text = str(value).strip()
+    if not text:
+        return None
+    for fmt in _TEXT_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    return None
 
 
 def read_rows() -> list[list[Any]]:

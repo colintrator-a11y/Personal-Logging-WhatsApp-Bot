@@ -7,3 +7,8 @@ npm-debug.log*
 .venv/
 __pycache__/
 *.pyc
+
+# service account key — never commit
+sheet-credential.json
+*-credential*.json
+*service-account*.json

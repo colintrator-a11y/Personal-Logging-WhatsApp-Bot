@@ -157,7 +157,6 @@ async def _total(category: str | None) -> str:
         return "⚠️ Could not read the sheet. Try again in a moment."
 
     now = datetime.now(config.TZ)
-    prefix = now.strftime("%Y-%m")
 
     by_currency: dict[str, float] = defaultdict(float)
     by_category: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
@@ -165,7 +164,10 @@ async def _total(category: str | None) -> str:
 
     for row in rows:
         # date | amount | currency | category live in columns B..E
-        if len(row) < 5 or not str(row[1]).startswith(prefix):
+        if len(row) < 5:
+            continue
+        on = sheets.to_date(row[1])
+        if on is None or (on.year, on.month) != (now.year, now.month):
             continue
         try:
             amount = float(row[2])
