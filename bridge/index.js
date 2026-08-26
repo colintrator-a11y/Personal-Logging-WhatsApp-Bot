@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { Boom } from '@hapi/boom'
 import pino from 'pino'
@@ -77,7 +77,43 @@ async function askBrain(payload) {
   return res.json()
 }
 
+const PID_FILE = process.env.PID_FILE || './data/bridge.pid'
+
+function claimSingleInstance() {
+  try {
+    const prev = Number(readFileSync(PID_FILE, 'utf8').trim())
+    if (prev && prev !== process.pid) {
+      try {
+        process.kill(prev, 0) // throws unless that pid is alive
+        say(`another bridge is already running as pid ${prev} — exiting.`)
+        say('stop it first, or delete', PID_FILE, 'if that pid is stale.')
+        process.exit(1)
+      } catch {
+        // stale pidfile from a crash; ours to take
+      }
+    }
+  } catch {
+    // no pidfile yet
+  }
+  mkdirSync(dirname(PID_FILE), { recursive: true })
+  writeFileSync(PID_FILE, String(process.pid))
+  for (const sig of ['exit', 'SIGINT', 'SIGTERM']) {
+    process.on(sig, () => {
+      try {
+        if (Number(readFileSync(PID_FILE, 'utf8').trim()) === process.pid) {
+          unlinkSync(PID_FILE)
+        }
+      } catch {}
+      if (sig !== 'exit') process.exit(0)
+    })
+  }
+}
+
+let connecting = false
+
 async function start() {
+  if (connecting) return
+  connecting = true
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
   const { version } = await fetchLatestBaileysVersion()
 
@@ -99,6 +135,7 @@ async function start() {
       qrcode.generate(qr, { small: true })
     }
     if (connection === 'open') {
+      connecting = false
       say('connected as', jidNormalizedUser(sock.user?.id))
       say(ALLOWED.length ? `extra chats allowed: ${ALLOWED.join(', ')}` : 'self-chat only')
     }
@@ -108,7 +145,15 @@ async function start() {
         say('logged out — delete', AUTH_DIR, 'and re-scan the QR')
         process.exit(1)
       }
+      if (code === DisconnectReason.connectionReplaced) {
+        // Another bridge took the session. Reconnecting just kicks it back off
+        // and neither instance ever stays up long enough to read a message.
+        say('another bridge instance took over this session — exiting.')
+        say('run only one bridge: pm2 delete log-bridge, or kill the stray node process.')
+        process.exit(1)
+      }
       say('connection closed', code ?? '', '— reconnecting in 3s')
+      connecting = false
       setTimeout(start, 3000)
     }
   })
@@ -172,6 +217,8 @@ async function handle(sock, msg) {
 
 process.on('unhandledRejection', (e) => say('unhandledRejection:', e?.message || e))
 process.on('uncaughtException', (e) => say('uncaughtException:', e?.message || e))
+
+claimSingleInstance()
 
 start().catch((e) => {
   say('fatal:', e?.message || e)

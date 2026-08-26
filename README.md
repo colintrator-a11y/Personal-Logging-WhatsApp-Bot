@@ -98,6 +98,20 @@ pm2 start ecosystem.config.cjs
 pm2 save && pm2 startup
 ```
 
+## Is it running?
+
+```bash
+./status.sh
+```
+
+Checks both processes, the session state, queued writes and recent activity,
+and tells you the command to fix whatever is down.
+
+**Run exactly one bridge.** Two instances kick each other off the WhatsApp
+session every few seconds (`connection closed 440`) and neither stays up long
+enough to read a message. The bridge now refuses to start if another one holds
+`data/bridge.pid`, and exits rather than fighting back if it gets replaced.
+
 ## Using it
 
 Message **yourself** (WhatsApp → search your own name → "Message yourself").
