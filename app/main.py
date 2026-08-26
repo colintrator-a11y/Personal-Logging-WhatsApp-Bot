@@ -56,6 +56,7 @@ async def lifespan(_: FastAPI):
     else:
         try:
             await asyncio.to_thread(sheets.ensure_headers)
+            await asyncio.to_thread(sheets.ensure_formats)
             log.info("sheet ready: %s / %s", config.SHEET_ID, config.SHEET_NAME)
         except Exception as err:  # noqa: BLE001 - keep serving, writes will queue
             log.warning("could not verify the sheet: %s", err)

@@ -12,10 +12,75 @@ Two processes:
 The bridge holds no logic and the brain knows nothing about WhatsApp, so you can
 `curl` the brain to test everything without touching your phone.
 
+## How it works
+
+```mermaid
+flowchart LR
+    U["📱 You<br/>self-chat"]
+    B["bridge/index.js<br/><i>Baileys</i>"]
+    A["app/main.py<br/><i>FastAPI</i>"]
+    G["✨ Gemini<br/><i>flash-lite</i>"]
+    S["📊 Google Sheet"]
+    Q["💾 data/queue.jsonl"]
+
+    U -->|"almuerzo 1200"| B
+    B -->|"POST /message"| A
+    A <-->|"parse to JSON"| G
+    A -->|"append row"| S
+    A -.->|"on failure"| Q
+    Q -.->|"retry every 60s"| S
+    A -->|"✅ $1,200.00 · food · 26 Aug"| B
+    B --> U
 ```
-you ──WhatsApp──▶ bridge/index.js ──POST /message──▶ app/main.py ──▶ Gemini
-                        ▲                                  │
-                        └──────── reply text ──────────────┴──▶ Google Sheets
+
+Every message takes the same path. The important part is the **order**: the
+confirmation is sent *after* the sheet write returns, never before, so a ✅ in
+your chat always means the row is really there.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant You
+    participant Bridge
+    participant Brain
+    participant Gemini
+    participant Sheet
+
+    You->>Bridge: "food 40 and parking 12"
+    Note over Bridge: is it fromMe?<br/>is it the self-chat?<br/>have I seen this id?
+    Bridge->>Brain: POST /message
+    Brain->>Sheet: which categories exist?
+    Sheet-->>Brain: food, bills
+    Brain->>Gemini: text + categories + today's date
+    Gemini-->>Brain: [{40, USD, food}, {12, USD, transport}]
+    Brain->>Sheet: append 2 rows
+    Sheet-->>Brain: ok
+    Brain-->>Bridge: "✅ $40.00 · food · 26 Aug<br/>✅ $12.00 · transport · 26 Aug"
+    Bridge->>You: confirmation
+    Note over Bridge: the reply's own id was<br/>pre-registered, so the echo<br/>is ignored
+```
+
+### What happens to one message
+
+| Stage | What it does | If it fails |
+|---|---|---|
+| **Filter** | Drops anything not sent by you in your self-chat, and any message id already handled | Silent, but logged with the reason |
+| **Categories** | Reads the distinct values already in the sheet | Falls back to `SEED_CATEGORIES` |
+| **Parse** | Gemini returns strict JSON: amount, currency, category, description, absolute date | Retries 1s/2s/4s/8s across two models, then says the parser is down |
+| **Validate** | Rejects non-positive amounts, snaps categories to existing spellings, defaults bad dates to today | Bad entries dropped, not guessed |
+| **Write** | One `append` call for all rows from that message | 3 tries, then queued to disk and retried every 60s |
+| **Confirm** | Only now is ✅ sent | Plain failure message, no ✅ |
+
+### Why two processes
+
+Baileys is Node-only; the logic is Python. Splitting them means the WhatsApp
+session can restart without touching the parser, and the whole pipeline is
+testable over HTTP:
+
+```bash
+curl -XPOST localhost:8000/message -H 'content-type: application/json' \
+  -H "x-bridge-token: $BRIDGE_TOKEN" \
+  -d '{"message_id":"1","chat_jid":"test","text":"almuerzo 1200"}'
 ```
 
 ## Setup
@@ -32,7 +97,20 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 Create a sheet with a tab named `Log`. The header row is written automatically
 on first start:
 
-`timestamp | date | amount | currency | category | description | raw_message`
+| Column | Holds | Shown as |
+|---|---|---|
+| `timestamp` | when the row was written, local wall time | `08/26/2026 22:06:29` |
+| `date` | the expense date, after relative dates are resolved | `08/26/2026` |
+| `amount` | a number, not text — so `SUM` works | `4.5` |
+| `currency` | ISO code | `USD` |
+| `category` | learned from this column, see below | `food` |
+| `description` | short, in your original language | `almuerzo` |
+| `raw_message` | exactly what you typed | `almuerzo 1200` |
+
+Both date columns hold real date values with a `mm/dd/yyyy` number format
+applied on startup, not text — they stay sortable and `SUM`/`FILTER` keep
+working. Rename the headers to whatever you like; the code depends on column
+*order*, never on the header text.
 
 Then in Google Cloud: enable the **Google Sheets API**, create a **service
 account**, download its JSON key, and **share the sheet with the service
@@ -43,10 +121,26 @@ it every write returns 403.
 
 From <https://aistudio.google.com/apikey>. The free tier covers this easily.
 
-The default is `gemini-3.5-flash-lite` — a parse takes about a second. Note that
-`gemini-2.5-flash-lite` returns 404 for keys created after its retirement, so if
-you see `no longer available to new users`, list what your key can actually
-reach and set `GEMINI_MODEL` to one of those:
+Two models are configured, and the second is tried early rather than last:
+
+```
+GEMINI_MODEL=gemini-3.1-flash-lite            # primary
+GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite   # tried after 1s if the primary fails
+```
+
+This is not belt-and-braces. Individual models go slow or unavailable for hours
+at a time — `gemini-3.5-flash-lite` was answering in 18s while `3.1` answered
+the same prompt in 1.9s — and an overloaded model stays overloaded, so switching
+beats waiting. A parse normally takes ~1-2s end to end.
+
+Two gotchas worth knowing:
+
+- `GEMINI_TIMEOUT_MS` below **10000** makes every call fail with a `400`
+  (`deadline is too short`). The config clamps it, so you cannot set it lower.
+- `gemini-2.5-flash-lite` returns `404 — no longer available to new users` for
+  recently created keys.
+
+To see what your key can actually reach:
 
 ```bash
 .venv/bin/python -c "

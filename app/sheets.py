@@ -78,6 +78,40 @@ def ensure_headers() -> None:
     ).execute()
 
 
+# The cells hold real date/datetime values; these control only how they read.
+TIMESTAMP_FORMAT = "mm/dd/yyyy hh:mm:ss"
+DATE_FORMAT = "mm/dd/yyyy"
+
+
+def ensure_formats() -> None:
+    """Display both date columns as mm/dd/yyyy. Safe to run on every start."""
+    sheet_id = gid()
+
+    def col(index: int, pattern: str) -> dict:
+        return {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 1,  # leave the header alone
+                    "startColumnIndex": index,
+                    "endColumnIndex": index + 1,
+                },
+                "cell": {
+                    "userEnteredFormat": {
+                        "numberFormat": {"type": "DATE_TIME" if index == 0 else "DATE",
+                                         "pattern": pattern}
+                    }
+                },
+                "fields": "userEnteredFormat.numberFormat",
+            }
+        }
+
+    service().spreadsheets().batchUpdate(
+        spreadsheetId=config.SHEET_ID,
+        body={"requests": [col(0, TIMESTAMP_FORMAT), col(1, DATE_FORMAT)]},
+    ).execute()
+
+
 def append(rows: list[list[Any]]) -> None:
     """One API call for however many rows the message produced."""
     if not rows:

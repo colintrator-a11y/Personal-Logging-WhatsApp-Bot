@@ -20,8 +20,12 @@ FALLBACK_CATEGORY = "other"
 CATEGORY_CACHE_SECONDS = int(os.getenv("CATEGORY_CACHE_SECONDS", "60"))
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
-GEMINI_TIMEOUT_MS = int(os.getenv("GEMINI_TIMEOUT_MS", "10000"))
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+# Tried when the primary is rate limited, overloaded or timing out. Individual
+# models get slow or unavailable for hours at a time; two keeps the bot alive.
+GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
+# The API rejects any deadline under 10s with a 400, so do not let one through.
+GEMINI_TIMEOUT_MS = max(int(os.getenv("GEMINI_TIMEOUT_MS", "12000")), 10000)
 
 SHEET_ID = os.getenv("SHEET_ID", "")
 SHEET_NAME = os.getenv("SHEET_NAME", "Log")

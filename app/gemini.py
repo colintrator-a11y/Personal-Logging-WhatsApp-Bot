@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -10,6 +11,8 @@ from google import genai
 from google.genai import types
 
 from app import config
+
+log = logging.getLogger("gemini")
 
 _client: genai.Client | None = None
 
@@ -141,22 +144,30 @@ def _call(text: str, categories: list[str]) -> str:
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
     )
 
-    # 1s, 2s, 4s, 8s on rate limits and transport faults; bad requests fail at once.
-    delays = [1, 2, 4, 8]
+    # The fallback model is tried early rather than last: an overloaded model
+    # stays overloaded for a while, so switching beats waiting it out.
+    # Each entry is (model, seconds to sleep before trying it).
+    primary, backup = config.GEMINI_MODEL, config.GEMINI_FALLBACK_MODEL
+    plan = [(primary, 0), (backup, 1), (primary, 2), (backup, 4), (primary, 8)]
+    if not backup or backup == primary:
+        plan = [(primary, d) for d in (0, 1, 2, 4, 8)]
+
     last: Exception | None = None
-    for attempt in range(len(delays) + 1):
+    for i, (model, delay) in enumerate(plan):
+        if delay:
+            time.sleep(delay)
         try:
-            resp = client().models.generate_content(
-                model=config.GEMINI_MODEL, contents=text, config=cfg
-            )
+            resp = client().models.generate_content(model=model, contents=text, config=cfg)
             if not resp.text:
                 raise GeminiError("empty response")
+            if model != primary:
+                log.warning("answered by fallback model %s", model)
             return resp.text
         except Exception as err:  # noqa: BLE001 - retry policy depends on the code
             last = err
-            if attempt >= len(delays) or not _retryable(err):
+            log.warning("gemini %s attempt %d failed: %s", model, i + 1, str(err)[:120])
+            if not _retryable(err):
                 break
-            time.sleep(delays[attempt])
     raise GeminiError(f"gemini failed: {last}") from last
 
 
