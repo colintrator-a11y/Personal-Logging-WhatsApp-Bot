@@ -1,0 +1,21 @@
+{
+  "name": "personal-log-bot-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Baileys -> HTTP bridge for the personal expense log bot",
+  "main": "bridge/index.js",
+  "scripts": {
+    "start": "node bridge/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "baileys": "^6.7.9",
+    "dotenv": "^16.4.5",
+    "pino": "^9.5.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
