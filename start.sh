@@ -47,7 +47,7 @@ else
   echo -n "bridge  starting..."
   # Only look at lines written after this point — the log is appended to, so an
   # old "connected as" from a previous run would otherwise satisfy the wait.
-  before=$(wc -l < data/bridge.log 2>/dev/null || echo 0)
+  before=$( [ -f data/bridge.log ] && wc -l < data/bridge.log || echo 0 )
   nohup node bridge/index.js >> data/bridge.log 2>&1 &
   for _ in $(seq 1 40); do
     tail -n "+$((before + 1))" data/bridge.log 2>/dev/null \
