@@ -1,4 +1,6 @@
 import 'dotenv/config'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { Boom } from '@hapi/boom'
 import pino from 'pino'
 import qrcode from 'qrcode-terminal'
@@ -24,11 +26,24 @@ const ALLOWED = (process.env.ALLOWED_CHAT_JIDS || '')
 
 const logger = pino({ level: process.env.BAILEYS_LOG_LEVEL || 'silent' })
 
-// Baileys re-delivers on reconnect; remember what we already handled.
-const seen = new Set()
+// Baileys re-delivers on reconnect, so this has to survive a restart —
+// otherwise every `pm2 restart` re-logs whatever is still in the sync window.
+const SEEN_FILE = process.env.SEEN_FILE || './data/seen.json'
+let seen = new Set()
+try {
+  seen = new Set(JSON.parse(readFileSync(SEEN_FILE, 'utf8')))
+} catch {
+  // no file yet, or it is corrupt — starting empty is correct either way
+}
 const remember = (id) => {
   seen.add(id)
-  if (seen.size > 500) seen.delete(seen.values().next().value)
+  while (seen.size > 1000) seen.delete(seen.values().next().value)
+  try {
+    mkdirSync(dirname(SEEN_FILE), { recursive: true })
+    writeFileSync(SEEN_FILE, JSON.stringify([...seen]))
+  } catch (err) {
+    say('could not persist seen ids:', err?.message || err)
+  }
 }
 
 const stamp = () => new Date().toISOString()
@@ -99,7 +114,9 @@ async function start() {
   })
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return
+    // 'notify' is a live message; 'append' is one you typed on another linked
+    // device (phone, WhatsApp Web) that got synced to us. We want both.
+    if (type !== 'notify' && type !== 'append') return
     for (const msg of messages) {
       try {
         await handle(sock, msg)
@@ -120,8 +137,13 @@ async function handle(sock, msg) {
 
   const me = jidNormalizedUser(sock.user?.id)
   const chat = jidNormalizedUser(chatJid)
-  const isSelfChat = chat === me
-  if (!isSelfChat && !ALLOWED.includes(chat)) return
+  // Self-chat can arrive under either your phone-number jid or your lid.
+  const isSelfChat =
+    chat === me || (sock.user?.lid && chat === jidNormalizedUser(sock.user.lid))
+  if (!isSelfChat && !ALLOWED.includes(chat)) {
+    say('ignored: chat', chat, 'is not your self-chat and is not in ALLOWED_CHAT_JIDS')
+    return
+  }
 
   const text = extractText(msg)?.trim()
   if (!text) return
