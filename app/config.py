@@ -52,6 +52,15 @@ HEADERS = [
 ]
 
 
+def _key_looks_real() -> bool:
+    """The placeholder in .env.example is non-empty, so emptiness is not enough."""
+    return (
+        "BEGIN PRIVATE KEY" in PRIVATE_KEY
+        and "MIIE..." not in PRIVATE_KEY
+        and len(PRIVATE_KEY) > 500
+    )
+
+
 def missing() -> list[str]:
     """Config that must be present before the bot can do anything useful."""
     out = []
@@ -59,8 +68,9 @@ def missing() -> list[str]:
         ("GEMINI_API_KEY", GEMINI_API_KEY),
         ("SHEET_ID", SHEET_ID),
         ("GOOGLE_SERVICE_ACCOUNT_EMAIL", SERVICE_ACCOUNT_EMAIL),
-        ("GOOGLE_PRIVATE_KEY", PRIVATE_KEY),
     ):
         if not val:
             out.append(name)
+    if not _key_looks_real():
+        out.append("GOOGLE_PRIVATE_KEY")
     return out
