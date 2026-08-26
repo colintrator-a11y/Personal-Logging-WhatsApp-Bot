@@ -7,6 +7,7 @@ import qrcode from 'qrcode-terminal'
 import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
+  generateMessageID,
   jidNormalizedUser,
   useMultiFileAuthState,
   Browsers,
@@ -48,6 +49,32 @@ const remember = (id) => {
 
 const stamp = () => new Date().toISOString()
 const say = (...a) => console.log(stamp(), ...a)
+
+// Last-resort guard. Every known echo path is closed below, but a reply loop in
+// your own self-chat is expensive and noisy, so refuse to keep feeding it.
+const REPLY_BURST_LIMIT = Number(process.env.REPLY_BURST_LIMIT || 15)
+const REPLY_BURST_WINDOW_MS = 60000
+let recentReplies = []
+let tripped = false
+
+function replyBudgetOk() {
+  const now = Date.now()
+  recentReplies = recentReplies.filter((t) => now - t < REPLY_BURST_WINDOW_MS)
+  if (recentReplies.length >= REPLY_BURST_LIMIT) {
+    if (!tripped) {
+      tripped = true
+      say(`REPLY LOOP GUARD: ${recentReplies.length} replies in 60s — muting replies.`)
+      say('this should not happen; check data/bridge.log for what is echoing back.')
+    }
+    return false
+  }
+  if (tripped) {
+    tripped = false
+    say('reply loop guard released')
+  }
+  recentReplies.push(now)
+  return true
+}
 
 function extractText(msg) {
   const m = msg.message
@@ -175,7 +202,11 @@ async function start() {
 async function handle(sock, msg) {
   const id = msg.key?.id
   const chatJid = msg.key?.remoteJid
-  if (!id || !chatJid || seen.has(id)) return
+  if (!id || !chatJid) return
+  if (seen.has(id)) {
+    if (process.env.LOG_SUPPRESSED === '1') say('suppressed echo of our own message', id)
+    return
+  }
 
   // Only messages you typed yourself, ever.
   if (!msg.key.fromMe) return
@@ -211,7 +242,15 @@ async function handle(sock, msg) {
   }
 
   if (!reply) return
-  await sock.sendMessage(chatJid, { text: reply })
+
+  if (!replyBudgetOk()) return
+
+  // In a self-chat our own reply comes straight back as another fromMe message,
+  // which we would then answer, forever. Reserve the id and mark it seen BEFORE
+  // sending, so the echo is already known by the time it arrives.
+  const replyId = generateMessageID()
+  remember(replyId)
+  await sock.sendMessage(chatJid, { text: reply }, { messageId: replyId })
   say('>>', reply.replace(/\n/g, ' | '))
 }
 

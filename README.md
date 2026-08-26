@@ -98,6 +98,17 @@ pm2 start ecosystem.config.cjs
 pm2 save && pm2 startup
 ```
 
+## Start / stop
+
+```bash
+./start.sh    # brings up both processes, waits until each is actually ready
+./stop.sh     # stops both, keeps the WhatsApp session
+./status.sh   # is it healthy?
+```
+
+`start.sh` is idempotent — running it twice will not spawn a second bridge.
+`stop.sh` leaves `auth/` alone, so starting again needs no new QR scan.
+
 ## Is it running?
 
 ```bash
