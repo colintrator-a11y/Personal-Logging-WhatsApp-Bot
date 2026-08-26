@@ -12,3 +12,9 @@ __pycache__/
 sheet-credential.json
 *-credential*.json
 *service-account*.json
+
+# editor swap files
+*.swp
+*.swo
+*~
+.*.swp
