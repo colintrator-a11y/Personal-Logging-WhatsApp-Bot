@@ -19,13 +19,28 @@ else
 fi
 
 if [ -f data/bridge.log ]; then
-  drops=$(grep -c 'connection closed' data/bridge.log)
   last=$(grep -E 'connected as|connection closed|logged out|took over' data/bridge.log | tail -1)
   echo "  last event: ${last:-none}"
-  if [ "$drops" -gt 5 ]; then
-    echo "  ⚠️  $drops disconnects in this log — check for a second instance"
+
+  # Count only this run. The log is appended across restarts, so counting the
+  # whole file reports days-old disconnects as if they were happening now.
+  pid=$(cat data/bridge.pid 2>/dev/null)
+  since=""
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    since=$(date -u -d "$(ps -o lstart= -p "$pid" 2>/dev/null)" +%Y-%m-%dT%H:%M:%S 2>/dev/null)
+  fi
+  if [ -n "$since" ]; then
+    drops=$(awk -v s="$since" '$1 >= s && /connection closed/' data/bridge.log | wc -l)
+    scope="since this bridge started"
   else
-    echo "  disconnects: $drops"
+    drops=$(grep -c 'connection closed' data/bridge.log)
+    scope="in the whole log"
+  fi
+
+  if [ "$drops" -gt 5 ]; then
+    echo "  ⚠️  $drops disconnects $scope — check for a second instance"
+  else
+    echo "  disconnects: $drops ($scope)"
   fi
 fi
 
