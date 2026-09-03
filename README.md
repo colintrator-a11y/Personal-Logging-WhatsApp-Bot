@@ -200,6 +200,27 @@ pm2 start ecosystem.config.cjs
 pm2 save && pm2 startup
 ```
 
+## Linking a different phone
+
+One WhatsApp number per session — to move the bot to another phone you replace
+the session rather than adding one:
+
+```bash
+./stop.sh
+cp -r auth auth-backup-$(date +%F)   # so you can go back
+rm -rf auth data/seen.json
+npm start                            # live QR, refreshes every ~20s
+```
+
+Scan from **WhatsApp → Linked devices** on the new phone, then Ctrl-C and
+`./start.sh` to run it in the background. `./qr.sh` prints the newest QR if the
+bridge is already running in the background.
+
+To go back to the old number: `rm -rf auth && mv auth-backup-<date> auth`.
+
+The bot follows whichever number is linked, and `ALLOWED_CHAT_JIDS` is empty by
+default, so it listens to the new number's self-chat with no further config.
+
 ## Start / stop
 
 ```bash

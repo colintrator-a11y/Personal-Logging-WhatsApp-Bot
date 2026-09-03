@@ -18,3 +18,6 @@ sheet-credential.json
 *.swo
 *~
 .*.swp
+
+# session backups made when relinking a phone
+auth-backup-*/
