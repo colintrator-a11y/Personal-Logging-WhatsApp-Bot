@@ -18,12 +18,22 @@ const BRIDGE_TOKEN = process.env.BRIDGE_TOKEN || ''
 const AUTH_DIR = process.env.AUTH_DIR || './auth'
 const BRAIN_TIMEOUT_MS = Number(process.env.BRAIN_TIMEOUT_MS || 20000)
 
-// Empty = self-chat only. Anything listed here can also drive the bot,
-// but only for messages *you* sent (fromMe is enforced unconditionally).
+// Which chats may drive the bot. In self mode, empty means self-chat only.
+// In dedicated mode this is who is allowed to talk to the bot, and must be set.
 const ALLOWED = (process.env.ALLOWED_CHAT_JIDS || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean)
+  .map((s) => (s.includes('@') ? s : `${s.replace(/\D/g, '')}@s.whatsapp.net`))
+
+// 'self'      — the bot runs on your own number and you message yourself.
+//               Everything is fromMe, so replies look identical to your own
+//               messages: same green bubble, same side. WhatsApp offers no way
+//               to change that.
+// 'dedicated' — the bot has its own number and you message it as a contact.
+//               Its replies are genuinely incoming, so they render white and
+//               left-aligned on your phone.
+const MODE = (process.env.BOT_MODE || 'self').toLowerCase()
 
 const logger = pino({ level: process.env.BAILEYS_LOG_LEVEL || 'silent' })
 
@@ -165,7 +175,18 @@ async function start() {
     if (connection === 'open') {
       connecting = false
       say('connected as', jidNormalizedUser(sock.user?.id))
-      say(ALLOWED.length ? `extra chats allowed: ${ALLOWED.join(', ')}` : 'self-chat only')
+      if (MODE === 'dedicated') {
+        say('mode: dedicated — this number IS the bot; replies appear white/left')
+        if (ALLOWED.length) {
+          say(`accepting messages from: ${ALLOWED.join(', ')}`)
+        } else {
+          say('WARNING: ALLOWED_CHAT_JIDS is empty, so nobody may talk to the bot.')
+          say('message it once and this log will print the jid to allowlist.')
+        }
+      } else {
+        say('mode: self — you message yourself; replies look like your own messages')
+        say(ALLOWED.length ? `extra chats allowed: ${ALLOWED.join(', ')}` : 'self-chat only')
+      }
     }
     if (connection === 'close') {
       const code = new Boom(lastDisconnect?.error)?.output?.statusCode
@@ -209,17 +230,28 @@ async function handle(sock, msg) {
     return
   }
 
-  // Only messages you typed yourself, ever.
-  if (!msg.key.fromMe) return
-
   const me = jidNormalizedUser(sock.user?.id)
   const chat = jidNormalizedUser(chatJid)
   // Self-chat can arrive under either your phone-number jid or your lid.
   const isSelfChat =
     chat === me || (sock.user?.lid && chat === jidNormalizedUser(sock.user.lid))
-  if (!isSelfChat && !ALLOWED.includes(chat)) {
-    say('ignored: chat', chat, 'is not your self-chat and is not in ALLOWED_CHAT_JIDS')
-    return
+  const allowed = ALLOWED.includes(chat)
+
+  if (MODE === 'dedicated') {
+    // This account belongs to the bot, so anything fromMe is the bot's own
+    // reply. Only messages sent *to* it, by someone allowlisted, are input.
+    if (msg.key.fromMe) return
+    if (!allowed) {
+      say('ignored: message from', chat, '— add it to ALLOWED_CHAT_JIDS to allow')
+      return
+    }
+  } else {
+    // Your own account: only ever act on what you typed yourself.
+    if (!msg.key.fromMe) return
+    if (!isSelfChat && !allowed) {
+      say('ignored: chat', chat, 'is not your self-chat and is not in ALLOWED_CHAT_JIDS')
+      return
+    }
   }
 
   const text = extractText(msg)?.trim()

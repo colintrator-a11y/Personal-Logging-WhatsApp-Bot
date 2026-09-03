@@ -200,6 +200,37 @@ pm2 start ecosystem.config.cjs
 pm2 save && pm2 startup
 ```
 
+## One number or two
+
+WhatsApp draws a bubble green-and-right when the message is `fromMe`, and
+white-and-left when it is not. That is decided by *who sent it*, and no API or
+formatting can override it. Which means the two setups look different:
+
+| | `BOT_MODE=self` | `BOT_MODE=dedicated` |
+|---|---|---|
+| Numbers needed | one — yours | two — yours and the bot's |
+| Where you type | your own "Message yourself" chat | a normal chat with the bot's number |
+| How replies look | green, right-aligned, identical to your messages | **white, left-aligned** |
+| Telling them apart | only by the quoted block on replies | obvious — they are incoming |
+| Who may use it | you, in your own chat | whoever is in `ALLOWED_CHAT_JIDS` |
+
+`self` is the default and needs no second SIM. Choose `dedicated` if the
+green-on-green is the thing that bothers you.
+
+### Switching to a dedicated number
+
+1. Link the bridge to the **bot's** number, not yours:
+   `./stop.sh && rm -rf auth data/seen.json && npm start`, then scan with the
+   phone that will *be* the bot.
+2. Set `BOT_MODE=dedicated` in `.env`.
+3. From your personal phone, message the bot's number once. The bridge log
+   prints `ignored: message from <jid>` — that jid is yours.
+4. Put it in `ALLOWED_CHAT_JIDS` (a bare number like `18158006148` also works)
+   and `./start.sh`.
+
+Anyone not on that list is ignored, so the number being reachable does not make
+your log writable by strangers.
+
 ## Linking a different phone
 
 One WhatsApp number per session — to move the bot to another phone you replace
