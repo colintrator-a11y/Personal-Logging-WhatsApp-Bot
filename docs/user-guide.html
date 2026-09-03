@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Expense Log Bot — User Guide</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 14mm; }
+  @page :first { margin: 0; }   /* let the cover bleed to the paper edge */
+
+  :root{
+    --ink:#12211c; --muted:#5b6b64; --line:#dfe6e2;
+    --wa:#128c7e; --wa-dark:#075e54; --bubble:#dcf8c6; --bubble-in:#ffffff;
+    --warn:#a8630a; --warn-bg:#fdf6e7;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; color:var(--ink); background:#fff;
+    font: 10.5pt/1.55 "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  h1,h2,h3{ line-height:1.2; margin:0; }
+  code, .mono{ font-family:"SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace; }
+
+  /* ---------- cover ---------- */
+  .cover{
+    height:297mm; padding:34mm 22mm 18mm; color:#fff; overflow:hidden;
+    background:linear-gradient(150deg,#075e54 0%,#128c7e 55%,#25d366 140%);
+    display:flex; flex-direction:column; page-break-after:always;
+  }
+  .cover .mark{
+    width:46px;height:46px;border-radius:12px;background:rgba(255,255,255,.16);
+    display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:26mm;
+  }
+  .cover h1{ font-size:34pt; font-weight:650; letter-spacing:-.6pt; }
+  .cover .sub{ font-size:13pt; opacity:.88; margin-top:5mm; max-width:120mm; font-weight:300; }
+  .cover .rule{ width:56px;height:3px;background:rgba(255,255,255,.5);margin:9mm 0; }
+  .cover .lede{ font-size:10.5pt; opacity:.82; max-width:112mm; }
+  .cover .foot{ margin-top:auto; font-size:9pt; opacity:.7;
+    display:flex; justify-content:space-between; border-top:1px solid rgba(255,255,255,.22); padding-top:4mm; }
+
+  /* ---------- structure ---------- */
+  section{ page-break-inside:auto; }
+  h2{
+    font-size:15pt; font-weight:650; color:var(--wa-dark); letter-spacing:-.2pt;
+    margin:9mm 0 3mm; padding-bottom:2mm; border-bottom:2px solid var(--line);
+    page-break-after:avoid;
+  }
+  h2:first-of-type{ margin-top:0; }
+  h3{ font-size:11pt; font-weight:650; margin:6mm 0 2mm; color:var(--wa-dark); page-break-after:avoid; }
+  p{ margin:0 0 3mm; }
+  .muted{ color:var(--muted); }
+  .lead{ font-size:11pt; color:var(--muted); margin-bottom:5mm; }
+
+  /* ---------- chat ---------- */
+  .chat{
+    background:#e9e2db; border-radius:8px; padding:5mm 5mm 4mm;
+    margin:0 0 4mm; page-break-inside:avoid;
+  }
+  .row{ display:flex; margin-bottom:2.4mm; }
+  .row.you{ justify-content:flex-end; }
+  .b{
+    max-width:78%; padding:2.2mm 3.4mm; border-radius:8px; font-size:10pt;
+    box-shadow:0 1px 1px rgba(0,0,0,.12); position:relative;
+  }
+  .you .b{ background:var(--bubble); border-top-right-radius:2px; }
+  .bot .b{ background:var(--bubble-in); border-top-left-radius:2px; }
+  .b .tag{ display:block; font-size:7pt; letter-spacing:.4pt; text-transform:uppercase;
+           color:var(--muted); margin-bottom:.8mm; }
+  .b .txt{ white-space:pre-line; }
+  .b code{ background:rgba(0,0,0,.05); padding:0 1mm; border-radius:2px; font-size:9pt; }
+
+  /* ---------- tables ---------- */
+  table{ width:100%; border-collapse:collapse; margin:0 0 4mm; font-size:9.5pt;
+         page-break-inside:avoid; }
+  th{ text-align:left; font-weight:650; color:var(--wa-dark); font-size:8.5pt;
+      text-transform:uppercase; letter-spacing:.5pt; padding:2mm 2.5mm;
+      border-bottom:1.5px solid var(--line); }
+  td{ padding:2.2mm 2.5mm; border-bottom:1px solid var(--line); vertical-align:top; }
+  tr:last-child td{ border-bottom:none; }
+  td.cmd{ white-space:nowrap; width:34mm; }
+  td.cmd code{ background:var(--bubble); padding:.6mm 1.6mm; border-radius:3px; font-weight:600; }
+
+  /* ---------- callouts ---------- */
+  .note{
+    border-left:3px solid var(--wa); background:#f2f8f6; padding:3mm 4mm;
+    margin:0 0 4mm; font-size:9.5pt; border-radius:0 4px 4px 0; page-break-inside:avoid;
+  }
+  .note.warn{ border-left-color:#d8961f; background:var(--warn-bg); }
+  .note b{ color:var(--wa-dark); }
+  .note.warn b{ color:var(--warn); }
+
+  ul{ margin:0 0 3mm; padding-left:5mm; }
+  li{ margin-bottom:1.4mm; }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:0 7mm; }
+  .pill{ display:inline-block; background:var(--bubble); color:var(--wa-dark);
+         border-radius:20px; padding:.7mm 2.6mm; font-size:8.5pt; font-weight:600;
+         margin:0 1.2mm 1.2mm 0; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="mark">💬</div>
+  <h1>Expense Log Bot</h1>
+  <div class="sub">Track what you spend by texting yourself on WhatsApp.</div>
+  <div class="rule"></div>
+  <div class="lede">
+    Send a message like <b>almuerzo 1200</b> and it appears in your Google Sheet
+    within seconds — amount, currency, category and date, sorted out for you.
+    No app to open, no form to fill in.
+  </div>
+  <div class="foot"><span>User Guide</span><span>Version 1.0</span></div>
+</div>
+
+<section>
+<h2>How it works</h2>
+<p class="lead">You already know the interface. It is your own WhatsApp chat.</p>
+
+<p>The bot listens to <b>one chat only</b>: the conversation you have with yourself.
+Open WhatsApp, search your own name, and pick <b>“Message yourself”</b>. Anything
+you type there is read, understood and filed. Nothing else on your phone is touched,
+and nobody else can send anything to the bot.</p>
+
+<div class="chat">
+  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">almuerzo 1200</span></div></div>
+  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $1,200.00 · food · 26 Aug</span></div></div>
+</div>
+
+<p>That green tick is the important part. It is sent <b>only after</b> the row is
+safely saved in your spreadsheet. If you see a tick, the expense is recorded. If
+something went wrong, the bot says so in plain words instead.</p>
+
+<h2>Writing an expense</h2>
+<p>Write the way you would in a notebook. A description and a number, in either order.</p>
+
+<div class="chat">
+  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">taxi 35</span></div></div>
+  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $35.00 · transport · 26 Aug</span></div></div>
+  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">1200 almuerzo</span></div></div>
+  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $1,200.00 · food · 26 Aug</span></div></div>
+  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">groceries 42.80</span></div></div>
+  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $42.80 · groceries · 26 Aug</span></div></div>
+</div>
+
+<h3>Other currencies</h3>
+<p>Amounts default to your configured currency. Add a symbol to override it for
+that one entry.</p>
+
+<table>
+  <tr><th>You type</th><th>Recorded as</th></tr>
+  <tr><td class="mono">$18 lunch</td><td class="mono">$18.00 · food</td></tr>
+  <tr><td class="mono">¥480 coffee</td><td class="mono">¥480 · food <span class="muted">— yen has no decimals</span></td></tr>
+  <tr><td class="mono">€40 groceries</td><td class="mono">€40.00 · groceries</td></tr>
+</table>
+
+<h3>Dates — including yesterday</h3>
+<p>With no date, the bot uses today. Say when it happened and it works out the
+real date, in whatever language you are writing in.</p>
+
+<table>
+  <tr><th>You type</th><th>Date recorded</th></tr>
+  <tr><td class="mono">taxi 35 yesterday</td><td>the day before today</td></tr>
+  <tr><td class="mono">almuerzo 20 ayer</td><td>the day before today</td></tr>
+  <tr><td class="mono">コーヒー 480 昨日</td><td>the day before today</td></tr>
+  <tr><td class="mono">dinner 30 on aug 20</td><td>20 August</td></tr>
+</table>
+
+<h3>Several things in one message</h3>
+<p>Separate them with <b>and</b> or with commas. Each becomes its own row.</p>
+
+<div class="chat">
+  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">lunch 15, coffee 4, bus 2</span></div></div>
+  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $15.00 · food · 26 Aug
+✅ $4.00 · food · 26 Aug
+✅ $2.00 · transport · 26 Aug</span></div></div>
+</div>
+</section>
+
+<section>
+<h2>Categories</h2>
+<p class="lead">You never type a category. The bot chooses one and learns from you.</p>
+
+<p>Each expense is filed under a category so your monthly totals mean something.
+The bot reads the categories already in your sheet and reuses them wherever it
+can. When something genuinely new comes along, it creates a category for it.</p>
+
+<table>
+  <tr><th>You type</th><th>Filed under</th><th></th></tr>
+  <tr><td class="mono">lunch 12</td><td class="mono">food</td><td class="muted">reused an existing one</td></tr>
+  <tr><td class="mono">pharmacy 22</td><td class="mono">health</td><td class="muted">reused</td></tr>
+  <tr><td class="mono">electric bill 85</td><td class="mono">bills</td><td class="muted">reused</td></tr>
+  <tr><td class="mono">uber 24 to airport</td><td class="mono">transport</td><td class="muted">reused</td></tr>
+  <tr><td class="mono">rent 900</td><td class="mono">rent</td><td class="muted">new category created</td></tr>
+  <tr><td class="mono">vet for the dog 65</td><td class="mono">pets</td><td class="muted">new category created</td></tr>
+</table>
+
+<div class="note">
+  <b>You are in charge of the list.</b> The categories live in your spreadsheet,
+  not inside the bot. Rename a category in the sheet and the bot follows it from
+  then on. If you would rather it stopped inventing new ones, tidy the column and
+  it will stick to what it finds.
+</div>
+
+<h2>When the bot asks a question</h2>
+<p>If it cannot tell how much something cost, it asks rather than guessing.
+Reply with just the number and it remembers what you were talking about.</p>
+
+<div class="chat">
+  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">coffee</span></div></div>
+  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">❓ How much was the coffee?</span></div></div>
+  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">480</span></div></div>
+  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $480.00 · food · 26 Aug</span></div></div>
+</div>
+
+<p>A message with no expense in it is simply ignored, with a note so you know it
+was seen and not silently swallowed.</p>
+
+<h2>Commands</h2>
+<p class="lead">Five words worth remembering.</p>
+
+<table>
+  <tr><th>Command</th><th>What it does</th></tr>
+  <tr><td class="cmd"><code>undo</code></td>
+      <td>Removes everything the last message added. If that message logged three
+          expenses, all three go. Tells you exactly what it removed.</td></tr>
+  <tr><td class="cmd"><code>total</code></td>
+      <td>This month’s spending, with a breakdown per category, largest first.</td></tr>
+  <tr><td class="cmd"><code>total food</code></td>
+      <td>This month for one category. Works with any category in your sheet.</td></tr>
+  <tr><td class="cmd"><code>clean</code></td>
+      <td>Empties the sheet completely, keeping the column headings. A backup file
+          is saved first, and your spreadsheet’s own version history is a second
+          safety net.</td></tr>
+  <tr><td class="cmd"><code>help</code></td>
+      <td>A short reminder of the above, plus the categories currently in use.</td></tr>
+</table>
+
+<div class="chat">
+  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">total</span></div></div>
+  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">📊 Aug 2026
+$1,412.00 · 3 entries
+food — $1,200.00
+transport — $200.00
+bills — $12.00</span></div></div>
+  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">undo</span></div></div>
+  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">↩️ Removed 1 row.
+$200.00 · transport</span></div></div>
+</div>
+
+<div class="note warn">
+  <b>Totals are not converted between currencies.</b> If you log in both dollars
+  and yen, each is totalled separately and shown side by side. The bot will not
+  invent an exchange rate for you.
+</div>
+</section>
+
+<section>
+<h2>What lands in your spreadsheet</h2>
+<p class="lead">One row per expense, seven columns.</p>
+
+<table>
+  <tr><th>Column</th><th>Contains</th><th>Example</th></tr>
+  <tr><td class="mono">timestamp</td><td>When the row was written</td><td class="mono">2026-08-26T23:23:22+09:00</td></tr>
+  <tr><td class="mono">date</td><td>When the money was spent</td><td class="mono">08-25-2026</td></tr>
+  <tr><td class="mono">amount</td><td>A real number, so <code>SUM</code> works</td><td class="mono">35</td></tr>
+  <tr><td class="mono">currency</td><td>Three-letter code</td><td class="mono">USD</td></tr>
+  <tr><td class="mono">category</td><td>Chosen by the bot</td><td class="mono">transport</td></tr>
+  <tr><td class="mono">description</td><td>Short, in your own language</td><td class="mono">taxi</td></tr>
+  <tr><td class="mono">raw_message</td><td>Exactly what you typed</td><td class="mono">taxi 35 yesterday</td></tr>
+</table>
+
+<div class="note">
+  <b>Why the last column matters.</b> If the bot ever files something oddly, the
+  original wording is right there next to it. You can correct the row by hand and
+  see immediately what it was working from. The sheet is yours — edit any cell at
+  any time. The bot reads it back the next time you ask for a total.
+</div>
+
+<h2>If something goes wrong</h2>
+<p class="lead">The bot tells you plainly. It never pretends a failed save worked.</p>
+
+<table>
+  <tr><th>Message</th><th>What it means</th><th>What to do</th></tr>
+  <tr><td class="mono">⚠️ Sheet write failed…</td>
+      <td>Google Sheets was unreachable. Your expense was saved on the server and
+          is queued.</td>
+      <td>Nothing. It is retried automatically every minute.</td></tr>
+  <tr><td class="mono">⚠️ Could not reach the parser…</td>
+      <td>The language service was briefly unavailable. Nothing was recorded.</td>
+      <td>Send the message again in a moment.</td></tr>
+  <tr><td class="mono">🤔 No expense found…</td>
+      <td>No amount could be found in the message.</td>
+      <td>Include a number, or send <code>help</code>.</td></tr>
+  <tr><td class="mono">No reply at all</td>
+      <td>The service is not running.</td>
+      <td>Contact whoever administers the bot.</td></tr>
+</table>
+
+<div class="note">
+  <b>A tick always means saved.</b> The confirmation is sent after the write
+  succeeds, never before, so you can trust it. Anything short of a tick means the
+  expense is either queued or not recorded, and the message says which.
+</div>
+
+<h2>Good to know</h2>
+<div class="grid2">
+  <div>
+    <h3>Dates follow one timezone</h3>
+    <p class="muted">“Yesterday” is worked out in the timezone the bot is
+    configured for, not your phone’s. It matters only if you log around
+    midnight while travelling.</p>
+    <h3>Only you can use it</h3>
+    <p class="muted">The bot answers messages you send in your own chat and
+    ignores everything else. Nobody can add rows to your sheet by messaging you.</p>
+  </div>
+  <div>
+    <h3>Correct anything by hand</h3>
+    <p class="muted">Wrong category or amount? Edit the cell in the spreadsheet.
+    Nothing in the bot needs changing, and totals update immediately.</p>
+    <h3>Not included</h3>
+    <p class="muted">Photographs of receipts, voice notes, budgets, recurring
+    expenses and currency conversion are outside what this bot does.</p>
+  </div>
+</div>
+
+<h2>A one-minute start</h2>
+<ul>
+  <li>Open WhatsApp and go to the chat with yourself.</li>
+  <li>Send <code>help</code> — the bot replies with what it understands.</li>
+  <li>Send a real expense, for example <code>coffee 4.50</code>.</li>
+  <li>Look at your spreadsheet. The row is already there.</li>
+  <li>Send <code>total</code> at the end of the day.</li>
+</ul>
+
+<p class="muted" style="margin-top:8mm; padding-top:3mm; border-top:1px solid var(--line); font-size:9pt;">
+Expense Log Bot · User Guide · Version 1.0
+</p>
+</section>
+
+</body>
+</html>
