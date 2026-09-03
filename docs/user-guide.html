@@ -52,22 +52,28 @@
   .lead{ font-size:11pt; color:var(--muted); margin-bottom:5mm; }
 
   /* ---------- chat ---------- */
+  /* In a self-chat every message is yours, so both sides are green bubbles on
+     the right. The bot's replies are told apart by the quoted block only. */
   .chat{
     background:#e9e2db; border-radius:8px; padding:5mm 5mm 4mm;
     margin:0 0 4mm; page-break-inside:avoid;
   }
-  .row{ display:flex; margin-bottom:2.4mm; }
-  .row.you{ justify-content:flex-end; }
+  .row{ display:flex; justify-content:flex-end; align-items:flex-start;
+        gap:3.5mm; margin-bottom:2.4mm; }
+  .lbl{ font-size:7.5pt; letter-spacing:.4pt; text-transform:uppercase;
+        color:#8b968f; margin-top:1.8mm; white-space:nowrap; }
   .b{
-    max-width:78%; padding:2.2mm 3.4mm; border-radius:8px; font-size:10pt;
-    box-shadow:0 1px 1px rgba(0,0,0,.12); position:relative;
+    max-width:68%; padding:2.2mm 3.4mm; font-size:10pt;
+    background:var(--bubble); border-radius:8px; border-top-right-radius:2px;
+    box-shadow:0 1px 1px rgba(0,0,0,.12);
   }
-  .you .b{ background:var(--bubble); border-top-right-radius:2px; }
-  .bot .b{ background:var(--bubble-in); border-top-left-radius:2px; }
-  .b .tag{ display:block; font-size:7pt; letter-spacing:.4pt; text-transform:uppercase;
-           color:var(--muted); margin-bottom:.8mm; }
+  .b .q{
+    display:block; margin-bottom:1.6mm; padding:1.4mm 2.2mm;
+    border-left:2.5px solid var(--wa); border-radius:3px;
+    background:rgba(255,255,255,.55); font-size:8.5pt; color:#5f6b64;
+  }
   .b .txt{ white-space:pre-line; }
-  .b code{ background:rgba(0,0,0,.05); padding:0 1mm; border-radius:2px; font-size:9pt; }
+  .b code{ background:rgba(0,0,0,.06); padding:0 1mm; border-radius:2px; font-size:9pt; }
 
   /* ---------- tables ---------- */
   table{ width:100%; border-collapse:collapse; margin:0 0 4mm; font-size:9.5pt;
@@ -123,9 +129,14 @@ you type there is read, understood and filed. Nothing else on your phone is touc
 and nobody else can send anything to the bot.</p>
 
 <div class="chat">
-  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">almuerzo 1200</span></div></div>
-  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $1,200.00 · food · 26 Aug</span></div></div>
+  <div class="row"><span class="lbl">you type</span><div class="b"><span class="txt">almuerzo 1200</span></div></div>
+  <div class="row"><span class="lbl">bot replies</span><div class="b"><span class="q">almuerzo 1200</span><span class="txt">✅ $1,200.00 · food · 26 Aug</span></div></div>
 </div>
+
+<div class="note"><b>Both are green.</b> Because the bot writes into your own
+chat, its replies look exactly like your messages — same colour, same side.
+The way to tell them apart is the small quoted block: every bot reply quotes
+the message it is answering. Your own messages never do.</div>
 
 <p>That green tick is the important part. It is sent <b>only after</b> the row is
 safely saved in your spreadsheet. If you see a tick, the expense is recorded. If
@@ -135,12 +146,12 @@ something went wrong, the bot says so in plain words instead.</p>
 <p>Write the way you would in a notebook. A description and a number, in either order.</p>
 
 <div class="chat">
-  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">taxi 35</span></div></div>
-  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $35.00 · transport · 26 Aug</span></div></div>
-  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">1200 almuerzo</span></div></div>
-  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $1,200.00 · food · 26 Aug</span></div></div>
-  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">groceries 42.80</span></div></div>
-  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $42.80 · groceries · 26 Aug</span></div></div>
+  <div class="row"><span class="lbl">you type</span><div class="b"><span class="txt">taxi 35</span></div></div>
+  <div class="row"><span class="lbl">bot replies</span><div class="b"><span class="q">taxi 35</span><span class="txt">✅ $35.00 · transport · 26 Aug</span></div></div>
+  <div class="row"><span class="lbl">you type</span><div class="b"><span class="txt">1200 almuerzo</span></div></div>
+  <div class="row"><span class="lbl">bot replies</span><div class="b"><span class="q">1200 almuerzo</span><span class="txt">✅ $1,200.00 · food · 26 Aug</span></div></div>
+  <div class="row"><span class="lbl">you type</span><div class="b"><span class="txt">groceries 42.80</span></div></div>
+  <div class="row"><span class="lbl">bot replies</span><div class="b"><span class="q">groceries 42.80</span><span class="txt">✅ $42.80 · groceries · 26 Aug</span></div></div>
 </div>
 
 <h3>Other currencies</h3>
@@ -170,8 +181,8 @@ real date, in whatever language you are writing in.</p>
 <p>Separate them with <b>and</b> or with commas. Each becomes its own row.</p>
 
 <div class="chat">
-  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">lunch 15, coffee 4, bus 2</span></div></div>
-  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $15.00 · food · 26 Aug
+  <div class="row"><span class="lbl">you type</span><div class="b"><span class="txt">lunch 15, coffee 4, bus 2</span></div></div>
+  <div class="row"><span class="lbl">bot replies</span><div class="b"><span class="q">lunch 15, coffee 4, bus 2</span><span class="txt">✅ $15.00 · food · 26 Aug
 ✅ $4.00 · food · 26 Aug
 ✅ $2.00 · transport · 26 Aug</span></div></div>
 </div>
@@ -207,10 +218,10 @@ can. When something genuinely new comes along, it creates a category for it.</p>
 Reply with just the number and it remembers what you were talking about.</p>
 
 <div class="chat">
-  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">coffee</span></div></div>
-  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">❓ How much was the coffee?</span></div></div>
-  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">480</span></div></div>
-  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">✅ $480.00 · food · 26 Aug</span></div></div>
+  <div class="row"><span class="lbl">you type</span><div class="b"><span class="txt">coffee</span></div></div>
+  <div class="row"><span class="lbl">bot replies</span><div class="b"><span class="q">coffee</span><span class="txt">❓ How much was the coffee?</span></div></div>
+  <div class="row"><span class="lbl">you type</span><div class="b"><span class="txt">480</span></div></div>
+  <div class="row"><span class="lbl">bot replies</span><div class="b"><span class="q">480</span><span class="txt">✅ $480.00 · food · 26 Aug</span></div></div>
 </div>
 
 <p>A message with no expense in it is simply ignored, with a note so you know it
@@ -237,14 +248,14 @@ was seen and not silently swallowed.</p>
 </table>
 
 <div class="chat">
-  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">total</span></div></div>
-  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">📊 Aug 2026
+  <div class="row"><span class="lbl">you type</span><div class="b"><span class="txt">total</span></div></div>
+  <div class="row"><span class="lbl">bot replies</span><div class="b"><span class="q">total</span><span class="txt">📊 Aug 2026
 $1,412.00 · 3 entries
 food — $1,200.00
 transport — $200.00
 bills — $12.00</span></div></div>
-  <div class="row you"><div class="b"><span class="tag">You</span><span class="txt">undo</span></div></div>
-  <div class="row bot"><div class="b"><span class="tag">Bot</span><span class="txt">↩️ Removed 1 row.
+  <div class="row"><span class="lbl">you type</span><div class="b"><span class="txt">undo</span></div></div>
+  <div class="row"><span class="lbl">bot replies</span><div class="b"><span class="q">undo</span><span class="txt">↩️ Removed 1 row.
 $200.00 · transport</span></div></div>
 </div>
 

@@ -251,7 +251,12 @@ async function handle(sock, msg) {
   // sending, so the echo is already known by the time it arrives.
   const replyId = generateMessageID()
   remember(replyId)
-  await sock.sendMessage(chatJid, { text: reply }, { messageId: replyId })
+  // In a self-chat every message is fromMe, so yours and the bot's are both
+  // green bubbles on the right and impossible to tell apart. Quoting the
+  // message being answered puts a citation block on the bot's replies only.
+  const opts = { messageId: replyId }
+  if (process.env.QUOTE_REPLIES !== '0') opts.quoted = msg
+  await sock.sendMessage(chatJid, { text: reply }, opts)
   say('>>', reply.replace(/\n/g, ' | '))
 }
 
